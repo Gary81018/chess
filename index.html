@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>给你的五子棋</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app" aria-label="五子棋小游戏">
+      <section class="game-shell">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">For You</p>
+            <h1>给你的五子棋</h1>
+          </div>
+          <div class="scoreboard" aria-label="比分">
+            <div>
+              <span id="blackScore">0</span>
+              <small>黑棋</small>
+            </div>
+            <div>
+              <span id="whiteScore">0</span>
+              <small>白棋</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="status-row">
+          <div class="turn-pill" id="turnPill">
+            <span class="stone-dot black"></span>
+            <span id="statusText">黑棋先手</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="aiToggle" />
+            <span></span>
+            <strong>陪玩模式</strong>
+          </label>
+        </div>
+
+        <div class="board-wrap">
+          <canvas id="board" width="720" height="720" aria-label="五子棋棋盘"></canvas>
+          <div class="win-banner hidden" id="winBanner">
+            <p id="winText">黑棋赢啦</p>
+            <button id="nextRoundBtn" type="button">再来一局</button>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="undoBtn" type="button" title="悔棋" aria-label="悔棋">
+            <span>↶</span>
+          </button>
+          <button id="restartBtn" type="button" title="重新开始" aria-label="重新开始">
+            <span>↺</span>
+          </button>
+          <button id="swapBtn" type="button">交换先手</button>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <div class="note">
+          <p class="note-title">小纸条</p>
+          <p id="loveNote">赢的人可以提一个小愿望。</p>
+        </div>
+        <div class="moves">
+          <div class="moves-head">
+            <h2>落子记录</h2>
+            <span id="moveCount">0 手</span>
+          </div>
+          <ol id="moveList"></ol>
+        </div>
+      </aside>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>
