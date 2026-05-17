@@ -430,7 +430,8 @@ function createOnlineRoom() {
   resetGame();
   const nextRoomCode = createRoomCode();
   roomRef = database.ref(`rooms/${nextRoomCode}`);
-  setOnlineMode(nextRoomCode, "black");
+  createRoomBtn.disabled = true;
+  setOnlineStatus("正在创建房间，等一下下。");
   roomRef
     .set({
       ...getRoomState(),
@@ -438,13 +439,17 @@ function createOnlineRoom() {
       createdAt: firebase.database.ServerValue.TIMESTAMP
     })
     .then(() => {
+      setOnlineMode(nextRoomCode, "black");
       listenToRoom();
       setOnlineStatus(`房间码 ${roomCode}，发给筠筠加入。`);
     })
-    .catch(() => setOnlineStatus("创建失败，检查 Firebase 配置和数据库权限。"));
+    .catch(() => setOnlineStatus("创建失败，检查 Firebase 配置和数据库权限。"))
+    .finally(() => {
+      createRoomBtn.disabled = false;
+    });
 }
 
-function joinOnlineRoom() {
+function joinOnlineRoom(retryCount = 0) {
   if (!database) return;
   const nextRoomCode = roomCodeInput.value.trim().toUpperCase();
   if (!nextRoomCode) {
@@ -467,7 +472,12 @@ function joinOnlineRoom() {
     .then((result) => {
       const state = result.snapshot.val();
       if (!result.committed || !state) {
-        setOnlineStatus("没找到这个房间。");
+        if (!state && retryCount < 2) {
+          setOnlineStatus("正在找房间，再等一下下。");
+          setTimeout(() => joinOnlineRoom(retryCount + 1), 700);
+          return;
+        }
+        setOnlineStatus(state ? "这个房间已经满了。" : "没找到这个房间，请确认房间码。");
         return;
       }
       const players = state.players || {};
