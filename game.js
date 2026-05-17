@@ -460,29 +460,33 @@ function joinOnlineRoom(retryCount = 0) {
   leaveRoom();
   roomRef = database.ref(`rooms/${nextRoomCode}`);
   roomRef
-    .transaction((state) => {
-      if (!state) return;
+    .once("value")
+    .then((snapshot) => {
+      const state = snapshot.val();
+      if (!state) {
+        if (retryCount < 2) {
+          setOnlineStatus("正在找房间，再等一下下。");
+          setTimeout(() => joinOnlineRoom(retryCount + 1), 700);
+          return null;
+        }
+        setOnlineStatus("没找到这个房间，请确认房间码。");
+        return null;
+      }
+
       const players = state.players || {};
       if (!players.black) players.black = playerId;
       else if (!players.white && players.black !== playerId) players.white = playerId;
-      else if (players.black !== playerId && players.white !== playerId) return;
-      state.players = players;
-      return state;
-    })
-    .then((result) => {
-      const state = result.snapshot.val();
-      if (!result.committed || !state) {
-        if (!state && retryCount < 2) {
-          setOnlineStatus("正在找房间，再等一下下。");
-          setTimeout(() => joinOnlineRoom(retryCount + 1), 700);
-          return;
-        }
-        setOnlineStatus(state ? "这个房间已经满了。" : "没找到这个房间，请确认房间码。");
-        return;
+      else if (players.black !== playerId && players.white !== playerId) {
+        setOnlineStatus("这个房间已经满了。");
+        return null;
       }
-      const players = state.players || {};
+
       const color = players.black === playerId ? "black" : "white";
-      setOnlineMode(nextRoomCode, color);
+      return roomRef.child("players").set(players).then(() => ({ color }));
+    })
+    .then((joined) => {
+      if (!joined) return;
+      setOnlineMode(nextRoomCode, joined.color);
       listenToRoom();
     })
     .catch(() => setOnlineStatus("加入失败，检查房间码或数据库权限。"));
