@@ -38,6 +38,19 @@
           </label>
         </div>
 
+        <div class="online-panel" id="onlinePanel">
+          <div class="online-copy">
+            <strong id="onlineTitle">在线对局</strong>
+            <span id="onlineStatus">创建房间后，把房间码发给筠筠。</span>
+          </div>
+          <div class="online-actions">
+            <button id="createRoomBtn" type="button">创建房间</button>
+            <input id="roomCodeInput" type="text" inputmode="latin" maxlength="8" placeholder="房间码" />
+            <button id="joinRoomBtn" type="button">加入</button>
+            <button id="leaveRoomBtn" class="ghost hidden" type="button">离开</button>
+          </div>
+        </div>
+
         <div class="board-wrap">
           <canvas id="board" width="720" height="720" aria-label="五子棋棋盘"></canvas>
           <div class="win-banner hidden" id="winBanner">
@@ -72,6 +85,9 @@
       </aside>
     </main>
 
+    <script src="online-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
     <script src="game.js"></script>
   </body>
 </html>

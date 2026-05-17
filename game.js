@@ -14,6 +14,12 @@ const nextRoundBtn = document.querySelector("#nextRoundBtn");
 const moveList = document.querySelector("#moveList");
 const moveCount = document.querySelector("#moveCount");
 const loveNote = document.querySelector("#loveNote");
+const onlineTitle = document.querySelector("#onlineTitle");
+const onlineStatus = document.querySelector("#onlineStatus");
+const createRoomBtn = document.querySelector("#createRoomBtn");
+const joinRoomBtn = document.querySelector("#joinRoomBtn");
+const leaveRoomBtn = document.querySelector("#leaveRoomBtn");
+const roomCodeInput = document.querySelector("#roomCodeInput");
 
 const size = 15;
 const cell = canvas.width / (size + 1);
@@ -33,6 +39,19 @@ let moves;
 let scores = { black: 0, white: 0 };
 let firstPlayer = "black";
 let aiThinking = false;
+let database = null;
+let roomRef = null;
+let roomCode = "";
+let playerId = localStorage.getItem("gomokuPlayerId") || "";
+let myColor = null;
+let applyingRemoteState = false;
+let onlineEnabled = false;
+let unsubscribeRoom = null;
+
+if (!playerId) {
+  playerId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
+  localStorage.setItem("gomokuPlayerId", playerId);
+}
 
 function resetGame(keepFirst = true) {
   board = Array.from({ length: size }, () => Array(size).fill(null));
@@ -45,6 +64,7 @@ function resetGame(keepFirst = true) {
   updateMoves();
   drawBoard();
   maybeAiMove();
+  syncOnlineState();
 }
 
 function drawBoard() {
@@ -178,6 +198,7 @@ function placeStone(x, y, color = current, forced = false) {
   updateMoves();
   drawBoard();
   maybeAiMove();
+  syncOnlineState();
   return true;
 }
 
@@ -254,6 +275,7 @@ function getPointerPosition(event) {
 }
 
 function maybeAiMove() {
+  if (onlineEnabled) return;
   if (!aiToggle.checked || winner || current !== "white" || aiThinking) return;
   aiThinking = true;
   loveNote.textContent = notes[Math.floor(Math.random() * notes.length)];
@@ -295,7 +317,172 @@ function scoreMove(x, y, color) {
   }, center);
 }
 
+function initOnline() {
+  const config = window.GOMOKU_FIREBASE_CONFIG;
+  const hasConfig = config && config.apiKey && config.databaseURL && window.firebase;
+
+  if (!hasConfig) {
+    onlineStatus.textContent = "先填好 Firebase 配置，就能创建房间在线玩。";
+    createRoomBtn.disabled = true;
+    joinRoomBtn.disabled = true;
+    return;
+  }
+
+  firebase.initializeApp(config);
+  database = firebase.database();
+  onlineStatus.textContent = "创建房间后，把房间码发给筠筠。";
+}
+
+function createRoomCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+function getRoomState() {
+  return {
+    moves,
+    current,
+    winner,
+    scores,
+    firstPlayer,
+    updatedAt: firebase.database.ServerValue.TIMESTAMP
+  };
+}
+
+function syncOnlineState() {
+  if (!onlineEnabled || applyingRemoteState || !roomRef) return;
+  roomRef.update(getRoomState());
+}
+
+function setOnlineStatus(text) {
+  onlineStatus.textContent = text;
+}
+
+function setOnlineMode(nextRoomCode, color) {
+  onlineEnabled = true;
+  roomCode = nextRoomCode;
+  myColor = color;
+  aiToggle.checked = false;
+  aiToggle.disabled = true;
+  roomCodeInput.value = roomCode;
+  leaveRoomBtn.classList.remove("hidden");
+  onlineTitle.textContent = `房间 ${roomCode}`;
+  setOnlineStatus(`你执${myColor === "black" ? "黑棋" : "白棋"}，${myColor === "black" ? "等她加入后你先下。" : "等对方先下。"}`);
+}
+
+function leaveRoom() {
+  if (unsubscribeRoom && roomRef) {
+    roomRef.off("value", unsubscribeRoom);
+  }
+  unsubscribeRoom = null;
+  roomRef = null;
+  roomCode = "";
+  myColor = null;
+  onlineEnabled = false;
+  aiToggle.disabled = false;
+  leaveRoomBtn.classList.add("hidden");
+  onlineTitle.textContent = "在线对局";
+  setOnlineStatus("创建房间后，把房间码发给筠筠。");
+}
+
+function applyRemoteState(state) {
+  applyingRemoteState = true;
+  board = Array.from({ length: size }, () => Array(size).fill(null));
+  moves = Array.isArray(state.moves) ? state.moves.filter(Boolean) : [];
+  moves.forEach((move) => {
+    if (inside(move.x, move.y)) board[move.y][move.x] = move.color;
+  });
+  current = state.current || "black";
+  winner = state.winner || null;
+  scores = state.scores || { black: 0, white: 0 };
+  firstPlayer = state.firstPlayer || "black";
+  updateScore();
+  updateStatus();
+  updateMoves();
+  drawBoard();
+
+  if (winner === "black" || winner === "white") {
+    showWinner(winner);
+  } else if (winner === "draw") {
+    showDraw();
+  } else {
+    winBanner.classList.add("hidden");
+  }
+
+  if (!winner && onlineEnabled) {
+    setOnlineStatus(current === myColor ? "轮到你啦。" : "等对方落子。");
+  }
+  applyingRemoteState = false;
+}
+
+function listenToRoom() {
+  unsubscribeRoom = (snapshot) => {
+    const state = snapshot.val();
+    if (!state) return;
+    applyRemoteState(state);
+  };
+  roomRef.on("value", unsubscribeRoom);
+}
+
+function createOnlineRoom() {
+  if (!database) return;
+  leaveRoom();
+  resetGame();
+  const nextRoomCode = createRoomCode();
+  roomRef = database.ref(`rooms/${nextRoomCode}`);
+  setOnlineMode(nextRoomCode, "black");
+  roomRef
+    .set({
+      ...getRoomState(),
+      players: { black: playerId },
+      createdAt: firebase.database.ServerValue.TIMESTAMP
+    })
+    .then(() => {
+      listenToRoom();
+      setOnlineStatus(`房间码 ${roomCode}，发给筠筠加入。`);
+    })
+    .catch(() => setOnlineStatus("创建失败，检查 Firebase 配置和数据库权限。"));
+}
+
+function joinOnlineRoom() {
+  if (!database) return;
+  const nextRoomCode = roomCodeInput.value.trim().toUpperCase();
+  if (!nextRoomCode) {
+    setOnlineStatus("先输入房间码。");
+    return;
+  }
+
+  leaveRoom();
+  roomRef = database.ref(`rooms/${nextRoomCode}`);
+  roomRef
+    .transaction((state) => {
+      if (!state) return;
+      const players = state.players || {};
+      if (!players.black) players.black = playerId;
+      else if (!players.white && players.black !== playerId) players.white = playerId;
+      else if (players.black !== playerId && players.white !== playerId) return;
+      state.players = players;
+      return state;
+    })
+    .then((result) => {
+      const state = result.snapshot.val();
+      if (!result.committed || !state) {
+        setOnlineStatus("没找到这个房间。");
+        return;
+      }
+      const players = state.players || {};
+      const color = players.black === playerId ? "black" : "white";
+      setOnlineMode(nextRoomCode, color);
+      listenToRoom();
+    })
+    .catch(() => setOnlineStatus("加入失败，检查房间码或数据库权限。"));
+}
+
 canvas.addEventListener("click", (event) => {
+  if (onlineEnabled && current !== myColor) {
+    loveNote.textContent = "先等等，轮到你时再落子。";
+    return;
+  }
   if (aiToggle.checked && current === "white") return;
   const { x, y } = getPointerPosition(event);
   if (!inside(x, y)) return;
@@ -337,4 +524,12 @@ aiToggle.addEventListener("change", () => {
   resetGame();
 });
 
+createRoomBtn.addEventListener("click", createOnlineRoom);
+joinRoomBtn.addEventListener("click", joinOnlineRoom);
+leaveRoomBtn.addEventListener("click", leaveRoom);
+roomCodeInput.addEventListener("input", () => {
+  roomCodeInput.value = roomCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+});
+
+initOnline();
 resetGame();
