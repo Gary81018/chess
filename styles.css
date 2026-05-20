@@ -215,8 +215,8 @@ h1 {
 }
 
 .stone-dot.white {
-  background: #ffd7e3;
-  border: 1px solid rgba(216, 79, 104, 0.28);
+  background: #fffaf3;
+  border: 1px solid rgba(47, 43, 41, 0.25);
 }
 
 .switch {
