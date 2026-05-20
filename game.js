@@ -152,9 +152,9 @@ function drawStone(x, y, color) {
     gradient.addColorStop(0.45, "#262321");
     gradient.addColorStop(1, "#090807");
   } else {
-    gradient.addColorStop(0, "#ffffff");
-    gradient.addColorStop(0.52, "#fff7eb");
-    gradient.addColorStop(1, "#d7c8b5");
+    gradient.addColorStop(0, "#fff9fb");
+    gradient.addColorStop(0.52, "#ffd7e3");
+    gradient.addColorStop(1, "#eaa6bb");
   }
 
   ctx.save();
